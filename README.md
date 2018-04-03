@@ -5,90 +5,61 @@
 > 1.首先，我们有一个job SendEmail,执行内容也是非常简单
 
 ```php
+<?php
+
 namespace App\Jobs;
 
 use App\User;
-
 use Carbon\Carbon;
-
 use Illuminate\Bus\Queueable;
-
 use Illuminate\Queue\SerializesModels;
-
 use Illuminate\Queue\InteractsWithQueue;
-
 use Illuminate\Contracts\Queue\ShouldQueue;
-
 use Illuminate\Foundation\Bus\Dispatchable;
-
 use Illuminate\Support\Facades\Log;
 
 class SendEmail implements ShouldQueue
-
 {
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-protected $user;
+    protected $user;
 
-protected $tries = 2;
+    protected $tries = 2;
+    /**
+     * Create a new job instance.
+     *
+     * @return void
+     */
+    public function __construct(User $user)
+    {
+        $this->user = $user;
+    }
 
-/**
+    /**
+     * Execute the job.
+     *
+     * @return void
+     */
+    public function handle()
+    {
+        Log::info('handel in sendemail');
+        $user = $this->user;
 
-* Create a new job instance.
+        $user->remark = Carbon::now()->toDateTimeString();
 
-*
+        //重试测试
+//        $user->heh = Carbon::now()->toDateTimeString();
 
-* @return void
 
-*/
+        $user->save();
+    }
 
-public function __construct(User $user)
-
-{
-
-$this->user = $user;
-
+    public function failed(\Exception $exception)
+    {
+        Log::error($exception->getMessage());
+    }
 }
-
-/**
-
-* Execute the job.
-
-*
-
-* @return void
-
-*/
-
-public function handle()
-
-{
-
-Log::info('handel in sendemail');
-
-$user = $this->user;
-
-$user->remark = Carbon::now()->toDateTimeString();
-
-//重试测试
-
-// $user->heh = Carbon::now()->toDateTimeString();
-
-$user->save();
-
-}
-
-public function failed(\Exception $exception)
-
-{
-
-Log::error($exception->getMessage());
-
-}
-
-}
-
 
 
 ```
@@ -106,7 +77,11 @@ $this->dispatch((new SendEmail($user))
 
 ```
 
-app(Dispatcher::class)方法是laravel 容器实例化的过程，具体是调到了类 Illuminate\Bus\Dispatcher里面,下面我们看看具体的方法
+
+
+> app(Dispatcher::class)方法是laravel 容器实例化的过程，具体是调到了类 Illuminate\Bus\Dispatcher里面,下面我们看看具体的方法
+
+
 
 ```php
 
@@ -114,19 +89,23 @@ public function dispatch($command)
 
 {
 
-  if ($this->queueResolver && $this->commandShouldBeQueued($command)) {
+   if ($this->queueResolver && $this->commandShouldBeQueued($command)) {
 
-  return $this->dispatchToQueue($command);
+   return $this->dispatchToQueue($command);
 
   }
 
-  return $this->dispatchNow($command);
+   return $this->dispatchNow($command);
 
 }
 
 ```
 
-dispatch方法中，$command是我们传入的job SendEmail,那么$this->queueResolver又是什么呢？我们来看看Dispatcher的构造函数就知道了
+
+
+> dispatch方法中，$command是我们传入的job SendEmail,那么$this->queueResolver又是什么呢？我们来看看Dispatcher的构造函数就知道了
+
+
 
 ```php
 
@@ -145,9 +124,9 @@ dispatch方法中，$command是我们传入的job SendEmail,那么$this->queueRe
     }
 ```
 
-$queueResolver 默认为null，我们实例化的时候也没有传值，所以不用管
 
-再看看$this->commandShouldBeQueued($command)方法
+
+> $queueResolver 默认为null，我们实例化的时候也没有传值，所以不用管再看看$this>commandShouldBeQueued($command)方法
 
 
 
@@ -189,8 +168,6 @@ $queueResolver 默认为null，我们实例化的时候也没有传值，所以�
         return $this->pushCommandToQueue($queue, $command);
     }
 ```
-
-
 
 
 
