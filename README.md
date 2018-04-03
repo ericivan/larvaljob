@@ -79,7 +79,7 @@ $this->dispatch((new SendEmail($user))
 
 
 
-> app(Dispatcher::class)方法是laravel 容器实例化的过程，具体是调到了类 Illuminate\Bus\Dispatcher里面,下面我们看看具体的方法
+> 3.app(Dispatcher::class)方法是laravel 容器实例化的过程，具体是调到了类 Illuminate\Bus\Dispatcher里面,下面我们看看具体的方法
 
 
 
@@ -103,7 +103,7 @@ public function dispatch($command)
 
 
 
-> dispatch方法中，$command是我们传入的job SendEmail,那么$this->queueResolver又是什么呢？我们来看看Dispatcher的构造函数就知道了
+> 4.dispatch方法中，$command是我们传入的job SendEmail,那么$this->queueResolver又是什么呢？我们来看看Dispatcher的构造函数就知道了
 
 
 
@@ -126,7 +126,7 @@ public function dispatch($command)
 
 
 
-> $queueResolver 默认为null，我们实例化的时候也没有传值，所以不用管再看看$this>commandShouldBeQueued($command)方法
+> 5.$queueResolver 默认为null，我们实例化的时候也没有传值，所以不用管再看看$this>commandShouldBeQueued($command)方法
 
 
 
@@ -138,7 +138,9 @@ public function dispatch($command)
 
 ```
 
-这段代码的意义在于判断我们的job是异步执行还是立刻执行，用过job的朋友都应该知道，如果我们的job SendEmail 实现 ShoulduQueue这个接口的话，我们就可以把job放到队列中进行异步处理，具体原理判断其实就是这句代码再回到刚才的dispatch代码，如果job是要放到队列里面，那就会走到下面这个方法里面
+
+
+> 这段代码的意义在于判断我们的job是异步执行还是立刻执行，用过job的朋友都应该知道，如果我们的job SendEmail 实现 ShoulduQueue这个接口的话，我们就可以把job放到队列中进行异步处理，具体原理判断其实就是这句代码再回到刚才的dispatch代码，如果job是要放到队列里面，那就会走到下面这个方法里面
 
 
 
@@ -171,4 +173,4 @@ public function dispatch($command)
 
 
 
-$sendEmail->connecton肯定是空，如果要设置的话在任务调度的时候链式调用onConnection('connection')
+> $sendEmail->connecton肯定是空，如果要设置的话在任务调度的时候链式调用onConnection('connection')
