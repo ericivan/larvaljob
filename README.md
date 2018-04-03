@@ -124,9 +124,58 @@ public function dispatch($command)
     }
 ```
 
+app的实例化以及绑定过程在BusServiceProvider中
+
+```php
+public function register()
+    {
+        $this->app->singleton(Dispatcher::class, function ($app) {
+            return new Dispatcher($app, function ($connection = null) use ($app) {
+                return $app[QueueFactoryContract::class]->connection($connection);
+            });
+        });
+
+        $this->app->alias(
+            Dispatcher::class, DispatcherContract::class
+        );
+
+        $this->app->alias(
+            Dispatcher::class, QueueingDispatcherContract::class
+        );
+    }
+```
 
 
-> 5.$queueResolver 默认为null，我们实例化的时候也没有传值，所以不用管再看看$this>commandShouldBeQueued($command)方法
+
+> Register 方法中绑定了 new Dispatcher()类，构造方法传入了$app容器以及一个闭包
+
+> return $app[QueueFactoryContract::class]->connection($connection) 返回的是一个RedisQueue,执行了
+>
+> QueueManager的connection()方法
+
+
+
+```php 
+ public function connection($name = null)
+    {
+        $name = $name ?: $this->getDefaultDriver();
+
+        // If the connection has not been resolved yet we will resolve it now as all
+        // of the connections are resolved when they are actually needed so we do
+        // not make any unnecessary connection to the various queue end-points.
+        if (! isset($this->connections[$name])) {
+            $this->connections[$name] = $this->resolve($name);
+
+            $this->connections[$name]->setContainer($this->app);
+        }
+
+        return $this->connections[$name];
+    }
+```
+
+
+
+> 5.再看看$this>commandShouldBeQueued($command)方法
 
 
 
@@ -135,12 +184,11 @@ public function dispatch($command)
     {
         return $command instanceof ShouldQueue;
     }
-
 ```
 
 
 
-> 这段代码的意义在于判断我们的job是异步执行还是立刻执行，用过job的朋友都应该知道，如果我们的job SendEmail 实现 ShoulduQueue这个接口的话，我们就可以把job放到队列中进行异步处理，具体原理判断其实就是这句代码再回到刚才的dispatch代码，如果job是要放到队列里面，那就会走到下面这个方法里面
+> 6.这段代码的意义在于判断我们的job是异步执行还是立刻执行，用过job的朋友都应该知道，如果我们的job SendEmail 实现 ShoulduQueue这个接口的话，我们就可以把job放到队列中进行异步处理，具体原理判断其实就是这句代码再回到刚才的dispatch代码，如果job是要放到队列里面，那就会走到下面这个方法里面
 
 
 
@@ -171,6 +219,56 @@ public function dispatch($command)
     }
 ```
 
+> 由于我们没有在job里面写queue方法，所以直接执行了$this->pushCommandToQueue()方法
+
+```php
+ protected function pushCommandToQueue($queue, $command)
+    {
+        if (isset($command->queue, $command->delay)) {
+            return $queue->laterOn($command->queue, $command->delay, $command);
+        }
+
+        if (isset($command->queue)) {
+            return $queue->pushOn($command->queue, $command);
+        }
+
+        if (isset($command->delay)) {
+            return $queue->later($command->delay, $command);
+        }
+
+        return $queue->push($command);
+    }
+```
 
 
-> $sendEmail->connecton肯定是空，如果要设置的话在任务调度的时候链式调用onConnection('connection')
+
+> 对sendEmail进行延迟判断，是否制定队列判断，最后就是调到了RedisQueue类里面把数据存在redis里面了
+
+
+
+##### 如果没有进入到队列里面，那job就是立即执行了，程序就执行到方法 dispatchNow()里面
+
+
+
+```php
+public function dispatchNow($command, $handler = null)
+    {
+
+        if ($handler || $handler = $this->getCommandHandler($command)) {
+            $callback = function ($command) use ($handler) {
+                return $handler->handle($command);
+            };
+        } else {
+            $callback = function ($command) {
+                return $this->container->call([$command, 'handle']);
+            };
+        }
+
+        return $this->pipeline->send($command)->through($this->pipes)->then($callback);
+    }
+```
+
+
+
+> handler为自定义的处理类，这边我们没有自定义，所以会方法执行到else，$callback值为call方法调用SendEmail的handler方法，方法最后通过管道模式进行处理，对$command的数据进行callback的操作
+
